@@ -11,84 +11,82 @@
 #include "io.h"
 #include "ml.h"
 
-namespace {
-  const tflite::Model* model = nullptr;
-  tflite::MicroMutableOpResolver<10>* resolver = nullptr;
-  tflite::MicroInterpreter* interpreter = nullptr;
-  TfLiteTensor* input = nullptr;
-  TfLiteTensor* output = nullptr;
+namespace
+{
+  const tflite::Model *model = nullptr;
+  tflite::MicroMutableOpResolver<10> *resolver = nullptr;
+  tflite::MicroInterpreter *interpreter = nullptr;
+  TfLiteTensor *input = nullptr;
+  TfLiteTensor *output = nullptr;
 
   int tensor_arena_size = 256 * 1024;
-  uint8_t* tensor_arena = nullptr;
+  uint8_t *tensor_arena = nullptr;
 }
 
 void updateProgressBar(int, int);
 
-void setup() {
+void setup()
+{
   delay(3000);
   Serial.begin(115200);
   SPIFFS.begin();
   print_available_memory();
 
-  char model_file[31] = "/spiffs/lenet.tflite";
-  interpreter = initializeInterpreter(model_file, model, resolver, tensor_arena_size, tensor_arena);
+  char model_file[31] = "/spiffs/mobilenet.tflite";
+  interpreter = initializeInterpreter(
+      model_file, model, resolver, tensor_arena_size, tensor_arena);
 
   print_available_memory();
 }
 
-void loop() {
+void loop()
+{
   char test_dir[30] = "/spiffs/test";
   printf("Opening test dir %s\n", test_dir);
 
-  // Open the directory
-  DIR* dir = NULL;
-  dir = opendir(test_dir);
-  if (dir == NULL) {
+  DIR *dir = opendir(test_dir);
+  if (dir == NULL)
+  {
     printf("Failed to open test dir\n");
     return;
   }
 
-  // Iterate through each entry in the directory
-  struct dirent* entry;
+  struct dirent *entry;
   int number_of_files = 2115;
   int file_number = 0;
   char image_file[30];
-  int lenet_image_size = 28 * 28 * 1;
-  int squeeze_image_size = 32 * 32 * 1;
-  uint8_t* image_data = (uint8_t*)malloc(lenet_image_size);
-  uint8_t* image_32_data = (uint8_t*)malloc(squeeze_image_size);
-  float* float_image_data = (float*)malloc(lenet_image_size * 4);
-  float* float_image_32_data = (float*)malloc(squeeze_image_size * 4);
-  int prediction;
-  int predictions[100] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  int mobilenet_image_size = 32 * 32 * 1;
+
+  uint8_t *image_data = (uint8_t *)malloc(32 * 32);
+  float *float_image_data = (float *)malloc(mobilenet_image_size * sizeof(float));
+
+  int prediction = -1;
+
+  int predictions[100] = {0};
 
   int64_t start = esp_timer_get_time();
 
-  while ((entry = readdir(dir)) != NULL) {
+  while ((entry = readdir(dir)) != NULL)
+  {
+
     snprintf(image_file, 30, "%s/%s", test_dir, entry->d_name);
-    // printf("\nFile: %s\n", image_file);
-    read_file_data(image_file, lenet_image_size, image_data);
 
-    // Squeeze needs 32 x 32 images
-    // resizeImage(image_data, image_32_data);
-    // preprocessImageData(image_32_data, squeeze_image_size, float_image_32_data);
-    // prediction = predict(interpreter, float_image_32_data, squeeze_image_size);
+    read_file_data(image_file, 32 * 32, image_data);
 
-    // Other models use 28 x 28 images
-    preprocessImageData(image_data, lenet_image_size, float_image_data);
-    prediction = predict(interpreter, float_image_data, lenet_image_size);
+    for (int i = 0; i < 32 * 32; i++)
+    {
+      float pixel = image_data[i] / 255.0f;
+      float_image_data[i * 3 + 0] = pixel;
+      float_image_data[i * 3 + 1] = pixel;
+      float_image_data[i * 3 + 2] = pixel;
+    }
 
-    // printf("Prediction: %i\n", entry->d_name, prediction);
-    include_prediction_in_confusion_matrix(predictions, entry->d_name, prediction);
+    prediction = predict(interpreter, float_image_data, mobilenet_image_size);
+
+    include_prediction_in_confusion_matrix(
+        predictions, entry->d_name, prediction);
+
     updateProgressBar(file_number++, number_of_files);
   }
 
@@ -96,34 +94,31 @@ void loop() {
   printf("\n\nElapsed time: %lld microseconds\n", stop - start);
 
   print_confusion_matrix(predictions);
-
   print_available_memory();
 
   free(image_data);
-  free(image_32_data);
   free(float_image_data);
-  free(float_image_32_data);
 
-  // Close the directory
   closedir(dir);
   printf("\nTest dir closed\n\n");
 
   delay(60000);
 }
 
-void updateProgressBar(int progress, int total) {
-    const int barWidth = 80;
-    float percentage = (float)progress / total;
-    int pos = (int)(barWidth * percentage);
+void updateProgressBar(int progress, int total)
+{
+  const int barWidth = 80;
+  float percentage = (float)progress / total;
+  int pos = (int)(barWidth * percentage);
 
-    printf("[");
-    for (int i = 0; i < barWidth; i++) {
-        if (i < pos) {
-            printf("=");
-        } else {
-            printf(" ");
-        }
-    }
-    printf("] %.2f%%\r", percentage * 100);
-    fflush(stdout);
+  printf("[");
+  for (int i = 0; i < barWidth; i++)
+  {
+    if (i < pos)
+      printf("=");
+    else
+      printf(" ");
+  }
+  printf("] %.2f%%\r", percentage * 100);
+  fflush(stdout);
 }

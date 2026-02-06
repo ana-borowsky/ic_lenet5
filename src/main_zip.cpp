@@ -28,7 +28,7 @@ void setup_z() {
   SPIFFS.begin();
   print_available_memory();
 
-  char model_file[31] = "/spiffs/LeNet5.tflite";
+  char model_file[31] = "/spiffs/mobilenet.tflite";//mobilenet
   interpreter = initializeInterpreter(model_file, model, resolver, tensor_arena_size, tensor_arena);
 
   print_available_memory();
@@ -51,11 +51,15 @@ void loop_z() {
 
   mz_uint numFiles = mz_zip_reader_get_num_files(&zip_archive);
 
-  int lenet_image_size = 28 * 28 * 1;
-  size_t image_size = lenet_image_size;
+  //int lenet_image_size = 28 * 28 * 1;
+  int mobilenet_image_size = 32 * 32 * 1;//mobilenet
+  size_t image_size = mobilenet_image_size;//mobilenet
+  //size_t image_size = lenet_image_size;
   // uint8_t* image_data;
-  uint8_t* image_data = (uint8_t*)malloc(lenet_image_size);
-  float* float_image_data = (float*)malloc(lenet_image_size * 4);
+  //uint8_t* image_data = (uint8_t*)malloc(lenet_image_size);
+  //float* float_image_data = (float*)malloc(lenet_image_size * 4);
+  uint8_t *image_data = (uint8_t *)malloc(mobilenet_image_size);
+  float *float_image_data = (float *)malloc(mobilenet_image_size * sizeof(float));
   int prediction;
   int predictions[100] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                           0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -94,8 +98,10 @@ void loop_z() {
         break;
       }
 
-      preprocessImageData(image_data, lenet_image_size, float_image_data);
-      prediction = predict(interpreter, float_image_data, lenet_image_size);
+      //ocessImageData(image_data, lenet_image_size, float_image_data);
+      preprocessImageData(image_data, mobilenet_image_size, float_image_data);
+      //prediction = predict(interpreter, float_image_data, lenet_image_size); //lenet
+      prediction = predict(interpreter, float_image_data, mobilenet_image_size); // mobilenet
       include_prediction_in_confusion_matrix(predictions, file_stat.m_filename, prediction);
     }
   }

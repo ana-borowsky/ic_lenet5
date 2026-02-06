@@ -175,7 +175,8 @@ tflite::MicroInterpreter* initializeInterpreter(char* model_file, const tflite::
     }
     printf("Loaded...");
 
-    resolver = vgg16Resolvers(resolver);
+    //resolver = vgg16Resolvers(resolver);
+    resolver = mobileNetResolvers(resolver);
     printf("Resolvers...");
 
     tensor_arena = (uint8_t*)malloc(tensor_arena_size);
@@ -219,7 +220,8 @@ int findMaxIndex(float predictions[]) {
     return maxIndex;
 }
 
-int predict(tflite::MicroInterpreter* interpreter, float* image_data, int image_size) {
+int predict(tflite::MicroInterpreter* interpreter, float* image_data, int image_size) 
+{
     if (kTfLiteOk != interpreter->initialization_status()) {
         printf("Interpreter not OK\n");
         return -1;
